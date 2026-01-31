@@ -158,14 +158,23 @@ button.primary{
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
-let clientes = JSON.parse(localStorage.getItem("clientes")) || [];
+/* 🔌 CONEXIÓN SUPABASE */
+const supabaseUrl = "https://firneslugiyghuklwirk.supabase.co";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpcm5lc2x1Z2l5Z2h1a2x3aXJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4MzExMjgsImV4cCI6MjA4NTQwNzEyOH0.nOpVVbAVAzo9XGaNUr05ap_szDQQspUsMlt3I-ol6FQ";
+const supabase = supabaseJs.createClient(supabaseUrl, supabaseKey);
+
+/* 📦 DATOS */
+let clientes = [];
 const hoy = new Date().toISOString().split("T")[0];
 document.getElementById("fechaHoy").innerText = hoy;
 
+/* 👁️ VISTAS */
 function mostrar(vista){
-  document.getElementById("vistaRenovaciones").classList.add("hidden");
-  document.getElementById("vistaTodos").classList.add("hidden");
+  vistaRenovaciones.classList.add("hidden");
+  vistaTodos.classList.add("hidden");
   btnRenovaciones.classList.remove("active");
   btnTodos.classList.remove("active");
 
@@ -178,51 +187,68 @@ function mostrar(vista){
   }
 }
 
-function guardar(){
+/* ➕ GUARDAR */
+async function guardar(){
   if(!nombre.value || !numero.value || !servicio.value || !fecha.value){
     alert("Completa todos los campos");
     return;
   }
 
-  clientes.push({
+  await supabase.from("clientes").insert([{
     nombre:nombre.value,
     numero:numero.value,
     servicio:servicio.value,
     fecha:fecha.value
-  });
+  }]);
 
-  localStorage.setItem("clientes",JSON.stringify(clientes));
   nombre.value = numero.value = servicio.value = fecha.value = "";
+  cargar();
+}
+
+/* 🔄 CARGAR */
+async function cargar(){
+  const { data } = await supabase
+    .from("clientes")
+    .select("*")
+    .order("fecha",{ascending:true});
+
+  clientes = data || [];
   render();
 }
 
+/* 📤 WHATSAPP */
 function enviar(numero,nombre){
-  const msg=`Hola ${nombre} 👋 Tu suscripción vence hoy. ¿Deseas renovar?`;
+  const msg = `Hola ${nombre} 👋 Tu suscripción vence hoy. ¿Deseas renovar?`;
   window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`,"_blank");
 }
 
-function renovar(i,meses){
-  let f=new Date(clientes[i].fecha);
+/* ♻️ RENOVAR */
+async function renovar(id,meses){
+  const c = clientes.find(x=>x.id===id);
+  let f = new Date(c.fecha);
   f.setMonth(f.getMonth()+meses);
-  clientes[i].fecha=f.toISOString().split("T")[0];
-  localStorage.setItem("clientes",JSON.stringify(clientes));
-  render();
+
+  await supabase
+    .from("clientes")
+    .update({fecha:f.toISOString().split("T")[0]})
+    .eq("id",id);
+
+  cargar();
 }
 
-function cardCliente(c,i){
+/* 🧱 CARD */
+function cardCliente(c){
   return `
   <div class="client">
-    <div class="client-header">
-      <div>
-        <strong>${c.nombre}</strong>
-        <small>${c.numero}</small>
-        <small>${c.servicio}</small>
-        <small>Vence: ${c.fecha}</small>
-      </div>
-      <button class="send" onclick="enviar('${c.numero}','${c.nombre}')">Enviar</button>
-    </div>
-    <select class="renew" onchange="renovar(${i},parseInt(this.value))">
-      <option value="">Renovar…</option>
+    <strong>${c.nombre}</strong>
+    <small>${c.numero}</small>
+    <small>${c.servicio}</small>
+    <small>Vence: ${c.fecha}</small>
+
+    <button class="send" onclick="enviar('${c.numero}','${c.nombre}')">Enviar</button>
+
+    <select class="renew" onchange="renovar(${c.id},this.value)">
+      <option value="">Renovar</option>
       <option value="1">+1 mes</option>
       <option value="2">+2 meses</option>
       <option value="3">+3 meses</option>
@@ -230,21 +256,21 @@ function cardCliente(c,i){
   </div>`;
 }
 
+/* 🖨️ RENDER */
 function render(){
   vistaRenovaciones.innerHTML="";
   vistaTodos.innerHTML="";
 
-  clientes.forEach((c,i)=>{
-    vistaTodos.innerHTML+=cardCliente(c,i);
-    if(c.fecha===hoy) vistaRenovaciones.innerHTML+=cardCliente(c,i);
+  clientes.forEach(c=>{
+    vistaTodos.innerHTML+=cardCliente(c);
+    if(c.fecha===hoy) vistaRenovaciones.innerHTML+=cardCliente(c);
   });
 
-  if(vistaRenovaciones.innerHTML===""){
-    vistaRenovaciones.innerHTML=`<div class="empty">No hay renovaciones hoy 🎉</div>`;
+  if(!vistaRenovaciones.innerHTML){
+    vistaRenovaciones.innerHTML="<div class='empty'>No hay renovaciones hoy 🎉</div>";
   }
 }
 
-render();
+/* 🚀 INICIO */
+cargar();
 </script>
-</body>
-</html>
